@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 device_query = "3.0.1"
 enigo = "0.3.0"
+rdev = "0.5.3"

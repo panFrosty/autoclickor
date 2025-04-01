@@ -1,13 +1,14 @@
 use device_query::{DeviceEvents, DeviceEventsHandler, Keycode, MouseButton, MousePosition};
+use rdev::{Button, EventType, Key, SimulateError, simulate};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::Duration;
+use std::{thread, time};
 
-use enigo::{Enigo, Key, Keyboard, Settings};
+// use enigo::{Enigo, Key, Keyboard, Settings};
 
-const SINGLE_SPAM_KEY: char = 'o';
-const AOE_SPAM_KEY: char = 'p';
-const AOE_SPAM_BUTTON: MouseButton = 4;
+const SINGLE_SPAM_KEY: Key = Key::KeyO;
+const AOE_SPAM_KEY: Key = Key::KeyP;
+const AOE_SPAM_BUTTON: MouseButton = 3;
 const SINGLE_SPAM_BUTTON: Keycode = Keycode::Grave;
 
 struct SpamState {
@@ -15,17 +16,31 @@ struct SpamState {
     spam_aoe: bool,
 }
 
+fn send_key(event_type: &EventType) {
+    let delay = time::Duration::from_millis(20);
+    match simulate(event_type) {
+        Ok(()) => (),
+        Err(SimulateError) => {
+            println!("We could not send {:?}", event_type);
+        }
+    }
+    // Let ths OS catchup (at least MacOS)
+    thread::sleep(delay);
+}
+
 fn spam_thread(spam_state: Arc<Mutex<SpamState>>) {
-    let mut enigo = Enigo::new(&Settings::default()).unwrap();
+    // let mut enigo = Enigo::new(&Settings::default()).unwrap();
     loop {
         let state = spam_state.lock().unwrap();
         if state.spam_aoe {
-            let _ = enigo.key(Key::Unicode(AOE_SPAM_KEY), enigo::Direction::Click);
+            send_key(&EventType::KeyPress(AOE_SPAM_KEY));
+            send_key(&EventType::KeyRelease(AOE_SPAM_KEY));
         } else if state.spam_single {
-            let _ = enigo.key(Key::Unicode(SINGLE_SPAM_KEY), enigo::Direction::Click);
+            send_key(&EventType::KeyPress(SINGLE_SPAM_KEY));
+            send_key(&EventType::KeyRelease(SINGLE_SPAM_KEY));
         }
         drop(state);
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(50));
     }
 }
 
@@ -36,10 +51,10 @@ fn listener_thread(spam_state: Arc<Mutex<SpamState>>) {
     let _mouse_button_detect_guard =
         event_handler.on_mouse_down(move |key_pressed: &MouseButton| {
             if *key_pressed == AOE_SPAM_BUTTON {
+                println!("Pressed Mouse key {}", key_pressed);
                 let mut state = spam_state_for_mouse.lock().unwrap();
                 state.spam_aoe = !state.spam_aoe;
                 state.spam_single = false;
-                println!("Pressed Mouse key {}", key_pressed);
             }
         });
     let spam_state_for_keyboard = spam_state.clone();
